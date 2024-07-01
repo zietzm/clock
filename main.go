@@ -127,9 +127,13 @@ func (app *ClockApp) clockInOut(action clockAction, category string) error {
 	if (action == clockOutAction) && (state.action == clockOutAction) {
 		return fmt.Errorf("already clocked out (%s @ %v)", state.category, state.time)
 	}
-	if (action == clockOutAction) && (state.action == clockInAction) &&
-		(state.category != category) {
-		return fmt.Errorf("cannot clock out of a different category (%s)", state.category)
+	if (action == clockOutAction) && (state.action == clockInAction) {
+		if (category != "") && (state.category != category) {
+			return fmt.Errorf("cannot clock out of a different category (%s)", state.category)
+		}
+		if category == "" {
+			category = state.category
+		}
 	}
 	return app.writeRow(action, category)
 }
@@ -184,11 +188,11 @@ func (app *ClockApp) printLog(n int) error {
 func parseCategory(args []string) string {
 	switch len(args) {
 	case 0:
-		return "default"
+		return ""
 	case 1:
 		return args[0]
 	default:
-		return "default"
+		return ""
 	}
 }
 

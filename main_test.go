@@ -41,10 +41,10 @@ func TestClockInOut(t *testing.T) {
 		category string
 		wantErr  bool
 	}{
-		{"ClockIn", clockInAction, "default", false},
-		{"ClockInAgain", clockInAction, "default", true},
-		{"ClockOut", clockOutAction, "default", false},
-		{"ClockOutAgain", clockOutAction, "default", true},
+		{"ClockIn", clockInAction, "", false},
+		{"ClockInAgain", clockInAction, "", true},
+		{"ClockOut", clockOutAction, "", false},
+		{"ClockOutAgain", clockOutAction, "", true},
 		{"ClockInDifferentCategory", clockInAction, "work", false},
 		{"ClockOutDifferentCategory", clockOutAction, "personal", true},
 	}
@@ -90,9 +90,9 @@ func TestParseCategory(t *testing.T) {
 		args []string
 		want string
 	}{
-		{"NoArgs", []string{}, "default"},
+		{"NoArgs", []string{}, ""},
 		{"OneArg", []string{"work"}, "work"},
-		{"MultipleArgs", []string{"work", "extra"}, "default"},
+		{"MultipleArgs", []string{"work", "extra"}, ""},
 	}
 
 	for _, tt := range tests {
