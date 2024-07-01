@@ -129,7 +129,11 @@ func (app *ClockApp) clockInOut(action clockAction, category string) error {
 	}
 	if (action == clockOutAction) && (state.action == clockInAction) {
 		if (category != "") && (state.category != category) {
-			return fmt.Errorf("cannot clock out of a different category (%s)", state.category)
+			return fmt.Errorf(
+				"cannot clock out of a different category (%s != %s)",
+				category,
+				state.category,
+			)
 		}
 		if category == "" {
 			category = state.category
