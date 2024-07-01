@@ -240,8 +240,37 @@ func main() {
 	clockLogCmd.Flags().
 		IntVarP(&n, "number of records to show", "n", 10, "Number of records to show")
 
+	var clockStatusCmd = &cobra.Command{
+		Use:   "status",
+		Short: "Show the current status",
+		Long:  ``,
+		Run: func(cmd *cobra.Command, args []string) {
+			records, err := app.readRows(1)
+			if err != nil {
+				log.Fatal(err)
+			}
+			if len(records) == 0 {
+				log.Fatalln("No records found")
+			}
+			record := records[0]
+			startTime, err := time.Parse("2006-01-02 15:04:05", record.time)
+			if err != nil {
+				log.Fatal(err)
+			}
+			now := time.Now()
+			elapsed := now.Sub(startTime).Round(time.Second)
+			fmt.Printf(
+				"Clock: %s @ %s from %s (%s)\n",
+				record.action,
+				record.category,
+				record.time,
+				elapsed,
+			)
+		},
+	}
+
 	var rootCmd = &cobra.Command{Use: "clock"}
-	rootCmd.AddCommand(clockInCmd, clockOutCmd, clockLogCmd)
+	rootCmd.AddCommand(clockInCmd, clockOutCmd, clockLogCmd, clockStatusCmd)
 	rootCmd.CompletionOptions.HiddenDefaultCmd = true
 	rootCmd.Execute()
 }
