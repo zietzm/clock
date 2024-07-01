@@ -132,11 +132,11 @@ func printTimeElapsed(db *sql.DB) error {
 	if len(records) < 2 {
 		return fmt.Errorf("not enough records to calculate time elapsed")
 	}
-	startTime, err := time.Parse("2006-01-02 15:04:05", records[0].time)
+	startTime, err := time.Parse("2006-01-02 15:04:05", records[1].time)
 	if err != nil {
 		return fmt.Errorf("error parsing start time: %v", err)
 	}
-	endTime, err := time.Parse("2006-01-02 15:04:05", records[1].time)
+	endTime, err := time.Parse("2006-01-02 15:04:05", records[0].time)
 	if err != nil {
 		return fmt.Errorf("error parsing end time: %v", err)
 	}
