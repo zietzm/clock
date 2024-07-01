@@ -13,6 +13,27 @@ import (
 	"github.com/spf13/cobra"
 )
 
+type ClockApp struct {
+	DB   *sql.DB
+	Path string
+}
+
+func NewClockApp() (*ClockApp, error) {
+	path, err := ensureDbPath()
+	if err != nil {
+		return nil, err
+	}
+	db, err := sql.Open("sqlite3", path)
+	if err != nil {
+		return nil, fmt.Errorf("error opening database: %v", err)
+	}
+	err = ensureTable(db)
+	if err != nil {
+		return nil, err
+	}
+	return &ClockApp{DB: db, Path: path}, nil
+}
+
 func ensureDbPath() (string, error) {
 	homedir, err := os.UserHomeDir()
 	if err != nil {
@@ -20,7 +41,10 @@ func ensureDbPath() (string, error) {
 	}
 	dir := homedir + "/.clock"
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		os.Mkdir(dir, 0755)
+		err = os.Mkdir(dir, 0755)
+		if err != nil {
+			return "", fmt.Errorf("error creating directory: %v", err)
+		}
 	}
 	return homedir + "/.clock/clock.db", nil
 }
@@ -49,24 +73,8 @@ type Record struct {
 	category string
 }
 
-func clockAdd(db *sql.DB, action clockAction, category string) error {
-	_, err := db.Exec(
-		"insert into records (time, action, category) values (datetime('now'), ?, ?);",
-		action,
-		category,
-	)
-	if err != nil {
-		return fmt.Errorf("error inserting record: %v", err)
-	}
-	return nil
-}
-
-func readRows(db *sql.DB, n int) ([]Record, error) {
-	err := ensureTable(db)
-	if err != nil {
-		return nil, fmt.Errorf("error ensuring table: %v", err)
-	}
-	rows, err := db.Query(
+func (app *ClockApp) readRows(n int) ([]Record, error) {
+	rows, err := app.DB.Query(
 		"select id, time, action, category from records order by id desc limit ?;",
 		n,
 	)
@@ -87,10 +95,30 @@ func readRows(db *sql.DB, n int) ([]Record, error) {
 	return records, nil
 }
 
-func clockInOut(db *sql.DB, action clockAction, category string) error {
-	states, err := readRows(db, 1)
+func (app *ClockApp) writeRow(action clockAction, category string) error {
+	_, err := app.DB.Exec(
+		"insert into records (time, action, category) values (datetime('now'), ?, ?);",
+		action,
+		category,
+	)
+	if err != nil {
+		return fmt.Errorf("error inserting record: %v", err)
+	}
+	return nil
+}
+
+func (app *ClockApp) clockInOut(action clockAction, category string) error {
+	states, err := app.readRows(1)
 	if err != nil {
 		return err
+	}
+	if len(states) == 0 {
+		switch action {
+		case clockInAction:
+			return app.writeRow(action, category)
+		case clockOutAction:
+			return fmt.Errorf("cannot clock out without clocking in first")
+		}
 	}
 	state := states[0]
 	if (action == clockInAction) && (state.action == clockInAction) {
@@ -103,29 +131,11 @@ func clockInOut(db *sql.DB, action clockAction, category string) error {
 		(state.category != category) {
 		return fmt.Errorf("cannot clock out of a different category (%s)", state.category)
 	}
-	return clockAdd(db, action, category)
+	return app.writeRow(action, category)
 }
 
-func performAction(action clockAction, category string) error {
-	path, err := ensureDbPath()
-	if err != nil {
-		return err
-	}
-	db, err := sql.Open("sqlite3", path)
-	if err != nil {
-		return fmt.Errorf("error opening database: %v", err)
-	}
-	defer db.Close()
-	err = ensureTable(db)
-	if err != nil {
-		return err
-	}
-	return clockInOut(db, action, category)
-}
-
-// Print the time that elapsed between the last two clock actions
-func printTimeElapsed(db *sql.DB) error {
-	records, err := readRows(db, 2)
+func (app *ClockApp) printTimeElapsed() error {
+	records, err := app.readRows(2)
 	if err != nil {
 		return err
 	}
@@ -149,8 +159,8 @@ func printTimeElapsed(db *sql.DB) error {
 	return nil
 }
 
-func printLog(db *sql.DB, n int) error {
-	records, err := readRows(db, n)
+func (app *ClockApp) printLog(n int) error {
+	records, err := app.readRows(n)
 	if err != nil {
 		return err
 	}
@@ -184,6 +194,10 @@ func parseCategory(args []string) string {
 
 func main() {
 	log.SetFlags(0)
+	app, err := NewClockApp()
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	var clockInCmd = &cobra.Command{
 		Use:   "in",
@@ -191,7 +205,7 @@ func main() {
 		Long:  ``,
 		Run: func(cmd *cobra.Command, args []string) {
 			category := parseCategory(args)
-			err := performAction(clockInAction, category)
+			err := app.clockInOut(clockInAction, category)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -204,7 +218,7 @@ func main() {
 		Long:  ``,
 		Run: func(cmd *cobra.Command, args []string) {
 			category := parseCategory(args)
-			err := performAction(clockOutAction, category)
+			err := app.clockInOut(clockOutAction, category)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -217,18 +231,7 @@ func main() {
 		Short: "Show the log of recent clock actions",
 		Long:  ``,
 		Run: func(cmd *cobra.Command, args []string) {
-			path, err := ensureDbPath()
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			db, err := sql.Open("sqlite3", path)
-			if err != nil {
-				log.Fatal(err)
-			}
-			defer db.Close()
-
-			err = printLog(db, n)
+			err := app.printLog(n)
 			if err != nil {
 				log.Fatal(err)
 			}
